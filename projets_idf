@@ -1,0 +1,59 @@
+#!/bin/sh
+
+if [ $# -lt 1 ]; then
+    echo "usage: ./projets_idf [OPTION] (-s : sort by status, -m: sort by mode, -i: status info)"
+    exit -1
+fi
+
+
+if [ $1 == "-s" ]; then
+    data=$(curl "https://data.iledefrance-mobilites.fr/explore/dataset/projets_lignes_idf/download/?format=json&timezone=Europe/Berlin&lang=fr")
+    data_json=$(echo $data | jq -s -c '.[] | sort_by(.fields.statut, .fields.mode)');
+elif [ $1 == "-m" ]; then
+    data=$(curl "https://data.iledefrance-mobilites.fr/explore/dataset/projets_lignes_idf/download/?format=json&timezone=Europe/Berlin&lang=fr")
+    data_json=$(echo $data | jq -s -c '.[] | sort_by(.fields.mode)');
+elif [ $1 == "-i" ]; then
+    echo "Statut de l'opération en cours"
+    echo "1 = études préalables"
+    echo "2 = DOCP"
+    echo "3 = concertation préalable, débat public"
+    echo "4 = schéma de principe"
+    echo "5 = enquête publique"
+    echo "6 = arrêté de DUP"
+    echo "7 = phase AVP (conception générale)"
+    echo "8 = phase PRO (conception détaillée)"
+    echo "9 = phase travaux"
+    echo "10 = mise en service"
+    exit 0
+else
+    echo "usage: ./projets_idf [OPTION] (-s : sort by status, -m: sort by mode, -i: status info)"
+    exit -1
+fi
+
+
+
+function get_field
+{
+    printf "%-$3s" "$(echo $1 | jq -r ".fields.${2}")"
+}
+
+
+
+echo "   EDIT  | DUP | DATE_DUP |ETA|      NOM PROJET      |      NOM OPERATION"
+for i in $(seq 1  $(echo $data_json | jq -r ". | length")); do
+
+    fields=$(echo $data_json | jq -r ".[$((i - 1))]")
+
+    printf "$(date -d $(get_field "$fields" date_editi 10) +"%d/%m/%y") | "
+
+    dup=$(get_field "$fields" dup 1)
+    if [ $dup == 1 ]; then
+        printf "OUI | $(date -d $(get_field "$fields" dup_date 10) +"%d/%m/%y") | "
+    else
+        printf "NON |    __    | "
+    fi
+
+    printf "$(get_field "$fields" statut 1) | "
+    printf "$(get_field "$fields" nom_projet 20) | "
+    printf "$(get_field "$fields" operation 80)\n"
+done
